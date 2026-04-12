@@ -1,0 +1,35 @@
+name: Actualizar datos NASA
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests pandas
+
+      - name: Descargar datos NASA
+        run: python src/download_exoplanets.py
+        env:
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+
+      - name: Commit datos actualizados
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add data/exoplanets.csv
+          git commit -m "data: actualización automática $(date '+%Y-%m-%d')" || echo "Sin cambios"
+          git push
