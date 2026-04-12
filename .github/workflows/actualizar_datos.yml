@@ -21,15 +21,7 @@ jobs:
       - name: Instalar dependencias
         run: pip install requests pandas python-dotenv duckdb
 
-      - name: Descargar datos NASA
+      - name: Verificar descarga NASA
         run: python src/download_exoplanets.py
         env:
           NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
-
-      - name: Commit datos actualizados
-        run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add data/exoplanets.csv
-          git commit -m "data: actualización automática $(date '+%Y-%m-%d')" || echo "Sin cambios"
-          git push
