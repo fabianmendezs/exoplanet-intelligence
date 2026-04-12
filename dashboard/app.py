@@ -28,6 +28,23 @@ def cargar_datos():
         }
         response = requests.get(url, params=params)
         df = pd.DataFrame(response.json())
+        df = df.rename(columns={
+            'pl_name': 'nombre_planeta',
+            'hostname': 'estrella',
+            'pl_masse': 'masa_terrestre',
+            'pl_rade': 'radio_terrestre',
+            'pl_orbper': 'periodo_orbital_dias',
+            'pl_eqt': 'temperatura_k',
+            'st_teff': 'temperatura_estrella_k',
+            'discoverymethod': 'metodo_descubrimiento',
+            'disc_year': 'año_descubrimiento'
+        })
+        df['tipo_planeta'] = df.apply(lambda r:
+            'Habitable' if pd.notna(r['temperatura_k']) and pd.notna(r['radio_terrestre']) and 200 <= r['temperatura_k'] <= 320 and r['radio_terrestre'] <= 1.5
+            else 'Rocoso' if pd.notna(r['radio_terrestre']) and r['radio_terrestre'] <= 1.5
+            else 'Super-Tierra' if pd.notna(r['radio_terrestre']) and r['radio_terrestre'] <= 4
+            else 'Gigante gaseoso' if pd.notna(r['radio_terrestre']) and r['radio_terrestre'] <= 10
+            else 'Gigante extremo', axis=1)
         return df
     else:
         conn = duckdb.connect("data/exoplanets.db")
