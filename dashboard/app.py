@@ -17,10 +17,23 @@ st.set_page_config(
 
 @st.cache_data
 def cargar_datos():
-    conn = duckdb.connect("data/exoplanets.db")
-    df = conn.execute("SELECT * FROM main.stg_exoplanets").df()
-    conn.close()
-    return df
+    import os
+    import requests
+
+    if not os.path.exists("data/exoplanets.db"):
+        url = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
+        params = {
+            "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year FROM ps WHERE default_flag=1",
+            "format": "json"
+        }
+        response = requests.get(url, params=params)
+        df = pd.DataFrame(response.json())
+        return df
+    else:
+        conn = duckdb.connect("data/exoplanets.db")
+        df = conn.execute("SELECT * FROM main.stg_exoplanets").df()
+        conn.close()
+        return df
 
 df = cargar_datos()
 
