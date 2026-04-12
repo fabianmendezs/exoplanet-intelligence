@@ -183,9 +183,12 @@ LAYOUT_BASE = dict(
     yaxis=dict(color='#ffffff', gridcolor='rgba(255,255,255,0.1)')
 )
 
+año_min = int(df['año_descubrimiento'].min())
+año_max = int(df['año_descubrimiento'].max())
+
 # HEADER
 st.markdown("""
-<div style='text-align:center; padding:48px 0 32px 0;'>
+<div style='text-align:center; padding:48px 0 24px 0;'>
     <h1 style='font-size:3em; letter-spacing:6px; margin-bottom:8px'>🪐 EXOPLANET INTELLIGENCE</h1>
     <p style='color:rgba(0,212,255,0.6); font-size:1.1em; letter-spacing:3px'>
         ANÁLISIS DE EXOPLANETAS · DATOS REALES NASA · IA INTEGRADA
@@ -193,58 +196,73 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# MÉTRICAS
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    st.markdown(f"<div class='metric-box'><h2>{len(df):,}</h2><p>PLANETAS</p></div>", unsafe_allow_html=True)
-with c2:
-    st.markdown(f"<div class='metric-box'><h2>{len(df[df['tipo_planeta']=='Habitable'])}</h2><p>HABITABLES</p></div>", unsafe_allow_html=True)
-with c3:
-    st.markdown(f"<div class='metric-box'><h2>{df['metodo_descubrimiento'].nunique()}</h2><p>MÉTODOS</p></div>", unsafe_allow_html=True)
-with c4:
-    st.markdown(f"<div class='metric-box'><h2>{int(df['año_descubrimiento'].min())}–{int(df['año_descubrimiento'].max())}</h2><p>AÑOS</p></div>", unsafe_allow_html=True)
+# FILTROS GLOBALES
+f1, f2, f3 = st.columns(3)
+with f1:
+    tipo_op = ["— Todos los tipos —"] + sorted(df['tipo_planeta'].unique().tolist())
+    tipo_sel = st.selectbox("Tipo de planeta", options=tipo_op, index=0)
+with f2:
+    df_por_tipo = df[df['tipo_planeta'] == tipo_sel] if tipo_sel != "— Todos los tipos —" else df
+    metodo_op = ["— Todos los métodos —"] + sorted(df_por_tipo['metodo_descubrimiento'].unique().tolist())
+    metodo_sel = st.selectbox("Método de descubrimiento", options=metodo_op, index=0)
+with f3:
+    rango_años = st.slider("Rango de años", año_min, año_max, (año_min, año_max))
+
+# Recalcular tipos disponibles según método
+if metodo_sel != "— Todos los métodos —":
+    tipos_disponibles = sorted(df[df['metodo_descubrimiento'] == metodo_sel]['tipo_planeta'].unique().tolist())
+    tipo_op_actualizado = ["— Todos los tipos —"] + tipos_disponibles
+    if tipo_sel not in tipo_op_actualizado:
+        tipo_sel = "— Todos los tipos —"
+
+# APLICAR FILTROS
+df_filtrado = df.copy()
+if tipo_sel != "— Todos los tipos —":
+    df_filtrado = df_filtrado[df_filtrado['tipo_planeta'] == tipo_sel]
+if metodo_sel != "— Todos los métodos —":
+    df_filtrado = df_filtrado[df_filtrado['metodo_descubrimiento'] == metodo_sel]
+df_filtrado = df_filtrado[
+    (df_filtrado['año_descubrimiento'] >= rango_años[0]) &
+    (df_filtrado['año_descubrimiento'] <= rango_años[1])
+].sort_values('nombre_planeta').reset_index(drop=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-año_min = int(df['año_descubrimiento'].min())
-año_max = int(df['año_descubrimiento'].max())
+# MÉTRICAS REACTIVAS
+c1, c2, c3, c4 = st.columns(4)
+estilo_num = "font-size:2em;font-family:Orbitron,monospace;color:#00d4ff;line-height:1.2"
+estilo_box = "class='metric-box' style='min-height:110px;display:flex;flex-direction:column;justify-content:center'"
 
+with c1:
+    st.markdown(f"<div {estilo_box}><div style='{estilo_num}'>{len(df_filtrado):,}</div><p>PLANETAS</p></div>", unsafe_allow_html=True)
+with c2:
+    st.markdown(f"<div {estilo_box}><div style='{estilo_num}'>{len(df_filtrado[df_filtrado['tipo_planeta']=='Habitable'])}</div><p>HABITABLES</p></div>", unsafe_allow_html=True)
+with c3:
+    st.markdown(f"<div {estilo_box}><div style='{estilo_num}'>{df_filtrado['metodo_descubrimiento'].nunique()}</div><p>MÉTODOS</p></div>", unsafe_allow_html=True)
+with c4:
+    if len(df_filtrado) > 0:
+        año_desde = int(df_filtrado['año_descubrimiento'].min())
+        año_hasta = int(df_filtrado['año_descubrimiento'].max())
+        st.markdown(f"<div {estilo_box}><div style='font-size:1.5em;font-family:Orbitron,monospace;color:#00d4ff;line-height:1.2'>{año_desde}–{año_hasta}</div><p>AÑO DESC.</p></div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div {estilo_box}><div style='{estilo_num}'>—</div><p>AÑO DESC.</p></div>", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# PESTAÑAS
 tab1, tab2, tab3 = st.tabs(["🔭  EXPLORADOR", "📊  VISUALIZACIONES", "🤖  AGENTE IA"])
 
 with tab1:
     st.markdown("<br>", unsafe_allow_html=True)
 
-    f1, f2, f3 = st.columns(3)
-    with f1:
-        tipo_op = ["— Todos los tipos —"] + sorted(df['tipo_planeta'].unique().tolist())
-        tipo_sel = st.selectbox("Tipo de planeta", options=tipo_op, index=0)
-    with f2:
-        metodo_op = ["— Todos los métodos —"] + sorted(df['metodo_descubrimiento'].unique().tolist())
-        metodo_sel = st.selectbox("Método de descubrimiento", options=metodo_op, index=0)
-    with f3:
-        rango_años = st.slider("Rango de años", año_min, año_max, (año_min, año_max))
-
-    df_filtrado = df.copy()
-    if tipo_sel != "— Todos los tipos —":
-        df_filtrado = df_filtrado[df_filtrado['tipo_planeta'] == tipo_sel]
-    if metodo_sel != "— Todos los métodos —":
-        df_filtrado = df_filtrado[df_filtrado['metodo_descubrimiento'] == metodo_sel]
-    df_filtrado = df_filtrado[
-        (df_filtrado['año_descubrimiento'] >= rango_años[0]) &
-        (df_filtrado['año_descubrimiento'] <= rango_años[1])
-    ].reset_index(drop=True)
-
-    st.markdown(f"<p style='color:rgba(0,212,255,0.5); font-size:0.85em'>{len(df_filtrado):,} planetas disponibles</p>", unsafe_allow_html=True)
-    st.markdown("---")
-
     if len(df_filtrado) == 0:
         st.warning("No hay planetas con los filtros seleccionados.")
     else:
-        df_filtrado = df_filtrado.sort_values('nombre_planeta').reset_index(drop=True)
         opciones = ["— Selecciona un planeta —"] + df_filtrado['nombre_planeta'].tolist()
         key_dinamico = f"exp_{tipo_sel}_{metodo_sel}_{rango_años[0]}_{rango_años[1]}"
         planeta_sel = st.selectbox("Selecciona un planeta", options=opciones, index=0, key=key_dinamico)
-
 
         if planeta_sel == "— Selecciona un planeta —":
             st.markdown("""
@@ -287,53 +305,52 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-            nombre_busqueda = datos['nombre_planeta'].replace(' ', '+')
-            search_url = f"https://www.google.com/search?q={nombre_busqueda}+exoplanet+NASA"
-            st.markdown(f"<br><a href='{search_url}' target='_blank' style='color:#00d4ff; font-family:Orbitron,monospace; font-size:11px; letter-spacing:1px; text-decoration:none; border:1px solid rgba(0,212,255,0.4); padding:8px 20px; border-radius:6px;'>🔭 BUSCAR EN NASA →</a>", unsafe_allow_html=True)
-
 with tab2:
     st.markdown("<br>", unsafe_allow_html=True)
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        conteo = df['tipo_planeta'].value_counts().reset_index()
-        conteo.columns = ['tipo', 'cantidad']
-        fig1 = px.bar(conteo, x='tipo', y='cantidad', color='tipo',
-            color_discrete_map=COLORES, title='Distribución por tipo de planeta',
-            template='plotly_dark')
-        fig1.update_layout(**LAYOUT_BASE, showlegend=False)
-        st.plotly_chart(fig1, use_container_width=True)
+    if len(df_filtrado) == 0:
+        st.warning("No hay planetas con los filtros seleccionados.")
+    else:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            conteo = df_filtrado['tipo_planeta'].value_counts().reset_index()
+            conteo.columns = ['tipo', 'cantidad']
+            fig1 = px.bar(conteo, x='tipo', y='cantidad', color='tipo',
+                color_discrete_map=COLORES, title='Distribución por tipo de planeta',
+                template='plotly_dark')
+            fig1.update_layout(**LAYOUT_BASE, showlegend=False)
+            st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
 
-    with col_b:
-        m_count = df['metodo_descubrimiento'].value_counts().reset_index()
-        m_count.columns = ['metodo', 'cantidad']
-        fig2 = px.pie(m_count, values='cantidad', names='metodo',
-            title='Métodos de descubrimiento', template='plotly_dark', hole=0.4)
-        fig2.update_layout(**LAYOUT_BASE)
-        fig2.update_traces(textfont_color='#ffffff')
-        st.plotly_chart(fig2, use_container_width=True)
+        with col_b:
+            m_count = df_filtrado['metodo_descubrimiento'].value_counts().reset_index()
+            m_count.columns = ['metodo', 'cantidad']
+            fig2 = px.pie(m_count, values='cantidad', names='metodo',
+                title='Métodos de descubrimiento', template='plotly_dark', hole=0.4)
+            fig2.update_layout(**LAYOUT_BASE)
+            fig2.update_traces(textfont_color='#ffffff')
+            st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
 
-    por_año = df.groupby('año_descubrimiento').size().reset_index()
-    por_año.columns = ['año', 'cantidad']
-    fig3 = px.area(por_año, x='año', y='cantidad', title='Descubrimientos por año',
-        template='plotly_dark', color_discrete_sequence=['#00d4ff'])
-    fig3.update_layout(**LAYOUT_BASE)
-    fig3.update_traces(fill='tozeroy', fillcolor='rgba(0,212,255,0.1)')
-    st.plotly_chart(fig3, use_container_width=True)
+        por_año = df_filtrado.groupby('año_descubrimiento').size().reset_index()
+        por_año.columns = ['año', 'cantidad']
+        fig3 = px.area(por_año, x='año', y='cantidad', title='Descubrimientos por año',
+            template='plotly_dark', color_discrete_sequence=['#00d4ff'])
+        fig3.update_layout(**LAYOUT_BASE)
+        fig3.update_traces(fill='tozeroy', fillcolor='rgba(0,212,255,0.1)')
+        st.plotly_chart(fig3, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
 
-    df_sc = df.dropna(subset=['radio_terrestre', 'temperatura_k'])
-    if len(df_sc) > 0:
-        fig4 = px.scatter(df_sc, x='temperatura_k', y='radio_terrestre',
-            color='tipo_planeta', color_discrete_map=COLORES,
-            hover_name='nombre_planeta',
-            title='Mapa de habitabilidad — Temperatura vs Radio',
-            template='plotly_dark',
-            labels={'temperatura_k': 'Temperatura (K)', 'radio_terrestre': 'Radio (R⊕)'})
-        fig4.add_vrect(x0=200, x1=320, fillcolor='rgba(0,255,135,0.08)',
-            layer='below', line_width=0,
-            annotation_text="Zona habitable", annotation_font_color='#00ff87')
-        fig4.update_layout(**LAYOUT_BASE)
-        st.plotly_chart(fig4, use_container_width=True)
+        df_sc = df_filtrado.dropna(subset=['radio_terrestre', 'temperatura_k'])
+        if len(df_sc) > 0:
+            fig4 = px.scatter(df_sc, x='temperatura_k', y='radio_terrestre',
+                color='tipo_planeta', color_discrete_map=COLORES,
+                hover_name='nombre_planeta',
+                title='Mapa de habitabilidad — Temperatura vs Radio',
+                template='plotly_dark',
+                labels={'temperatura_k': 'Temperatura (K)', 'radio_terrestre': 'Radio (R⊕)'})
+            fig4.add_vrect(x0=200, x1=320, fillcolor='rgba(0,255,135,0.08)',
+                layer='below', line_width=0,
+                annotation_text="Zona habitable", annotation_font_color='#00ff87')
+            fig4.update_layout(**LAYOUT_BASE)
+            st.plotly_chart(fig4, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
 
 with tab3:
     st.markdown("<br>", unsafe_allow_html=True)
@@ -367,21 +384,34 @@ with tab3:
             st.rerun()
 
     if enviar and pregunta:
-        hab = df[df['tipo_planeta'] == 'Habitable'][
+        filtros_activos = []
+        if tipo_sel != "— Todos los tipos —":
+            filtros_activos.append(f"tipo: {tipo_sel}")
+        if metodo_sel != "— Todos los métodos —":
+            filtros_activos.append(f"método: {metodo_sel}")
+        if rango_años != (año_min, año_max):
+            filtros_activos.append(f"años: {rango_años[0]}–{rango_años[1]}")
+
+        filtros_texto = ", ".join(filtros_activos) if filtros_activos else "ninguno (mostrando todos los planetas)"
+
+        hab = df_filtrado[df_filtrado['tipo_planeta'] == 'Habitable'][
             ['nombre_planeta', 'radio_terrestre', 'temperatura_k', 'estrella']
         ].to_string(index=False)
 
         resumen = f"""
-Dataset: {len(df)} planetas
-- Habitables: {len(df[df['tipo_planeta']=='Habitable'])}
-- Rocosos: {len(df[df['tipo_planeta']=='Rocoso'])}
-- Super-Tierras: {len(df[df['tipo_planeta']=='Super-Tierra'])}
-- Gigantes gaseosos: {len(df[df['tipo_planeta']=='Gigante gaseoso'])}
-- Temperatura promedio: {round(df['temperatura_k'].mean(), 1)} K
-- Radio promedio: {round(df['radio_terrestre'].mean(), 2)} R⊕
+Dataset filtrado: {len(df_filtrado)} planetas
+Filtros activos: {filtros_texto}
+- Habitables: {len(df_filtrado[df_filtrado['tipo_planeta']=='Habitable'])}
+- Rocosos: {len(df_filtrado[df_filtrado['tipo_planeta']=='Rocoso'])}
+- Super-Tierras: {len(df_filtrado[df_filtrado['tipo_planeta']=='Super-Tierra'])}
+- Gigantes gaseosos: {len(df_filtrado[df_filtrado['tipo_planeta']=='Gigante gaseoso'])}
+- Temperatura promedio: {round(df_filtrado['temperatura_k'].mean(), 1)} K
+- Radio promedio: {round(df_filtrado['radio_terrestre'].mean(), 2)} R⊕
 
-Planetas habitables:
+Planetas habitables en el filtro actual:
 {hab}
+
+IMPORTANTE: Si el usuario pregunta por planetas fuera del filtro actual, indícale que tiene filtros activos y que debe cambiarlos para ver esos planetas.
 """
         prompt = f"""Eres un astrónomo experto con acceso a la base de datos NASA de exoplanetas.
 
