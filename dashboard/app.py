@@ -189,7 +189,7 @@ año_max = int(df['año_descubrimiento'].max())
 # HEADER
 st.markdown("""
 <div style='text-align:center; padding:48px 0 24px 0;'>
-    <h1 style='font-size:3em; letter-spacing:6px; margin-bottom:8px'>🪐 EXOPLANET INTELLIGENCE</h1>
+    <h1 style='font-size:clamp(1.8em, 5vw, 3em); letter-spacing:clamp(2px, 1vw, 6px); margin-bottom:8px'>🪐 EXOPLANET INTELLIGENCE</h1>
     <p style='color:rgba(0,212,255,0.6); font-size:1.1em; letter-spacing:3px'>
         ANÁLISIS DE EXOPLANETAS · DATOS REALES NASA · IA INTEGRADA
     </p>
