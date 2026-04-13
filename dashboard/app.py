@@ -333,7 +333,8 @@ with tab2:
         por_año = df_filtrado.groupby('año_descubrimiento').size().reset_index()
         por_año.columns = ['año', 'cantidad']
         fig3 = px.area(por_año, x='año', y='cantidad', title='Descubrimientos por año',
-            template='plotly_dark', color_discrete_sequence=['#00d4ff'])
+            template='plotly_dark', color_discrete_sequence=['#00d4ff'],
+            markers=True)
         fig3.update_layout(**LAYOUT_BASE)
         fig3.update_traces(fill='tozeroy', fillcolor='rgba(0,212,255,0.1)')
         st.plotly_chart(fig3, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
