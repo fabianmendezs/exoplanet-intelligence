@@ -136,7 +136,7 @@ CHART_CONFIG = {
     'displayModeBar': False,
     'scrollZoom': False,
     'doubleClick': False,
-    'modeBarButtonsToRemove': ['select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+    'dragmode': False
 }
 
 @st.cache_data
@@ -216,7 +216,8 @@ LAYOUT_BASE = dict(
     font=dict(color='#ffffff'),
     legend=dict(font=dict(color='#ffffff'), bgcolor='rgba(0,0,0,0)'),
     xaxis=dict(color='#ffffff', gridcolor='rgba(255,255,255,0.1)'),
-    yaxis=dict(color='#ffffff', gridcolor='rgba(255,255,255,0.1)')
+    yaxis=dict(color='#ffffff', gridcolor='rgba(255,255,255,0.1)'),
+    dragmode=False
 )
 
 año_min = int(df['año_descubrimiento'].min())
