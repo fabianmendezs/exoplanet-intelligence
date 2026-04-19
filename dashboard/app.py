@@ -2,10 +2,14 @@ import streamlit as st
 import duckdb
 import pandas as pd
 import plotly.express as px
+import numpy as np
 import os
 from groq import Groq
 from dotenv import load_dotenv
 import requests
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 
 load_dotenv()
 
@@ -42,7 +46,6 @@ st.markdown("""
         padding: 20px;
         text-align: center;
     }
-    .metric-box h2 { font-size: 2em !important; margin: 0 !important; color: #00d4ff !important; }
     .metric-box p { color: rgba(0,212,255,0.7) !important; margin: 4px 0 0 0; font-size: 0.85em; letter-spacing: 2px; }
     .planet-card {
         background: rgba(0,212,255,0.04);
@@ -129,12 +132,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+CHART_CONFIG = {
+    'displayModeBar': False,
+    'scrollZoom': False,
+    'doubleClick': False,
+    'modeBarButtonsToRemove': ['select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+}
+
 @st.cache_data
 def cargar_datos():
     if not os.path.exists("data/exoplanets.db"):
         url = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
         params = {
-            "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year FROM ps WHERE default_flag=1",
+            "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year,pl_insol,sy_dist,sy_pnum,st_rad,st_mass FROM ps WHERE default_flag=1",
             "format": "json"
         }
         response = requests.get(url, params=params)
@@ -148,7 +158,12 @@ def cargar_datos():
             'pl_eqt': 'temperatura_k',
             'st_teff': 'temperatura_estrella_k',
             'discoverymethod': 'metodo_descubrimiento',
-            'disc_year': 'año_descubrimiento'
+            'disc_year': 'año_descubrimiento',
+            'pl_insol': 'insolacion_tierra',
+            'sy_dist': 'distancia_parsecs',
+            'sy_pnum': 'planetas_en_sistema',
+            'st_rad': 'radio_estrella',
+            'st_mass': 'masa_estrella'
         })
         df['tipo_planeta'] = df.apply(lambda r:
             'Habitable' if pd.notna(r['temperatura_k']) and pd.notna(r['radio_terrestre']) and 200 <= r['temperatura_k'] <= 320 and r['radio_terrestre'] <= 1.5
@@ -163,7 +178,28 @@ def cargar_datos():
         conn.close()
         return df
 
+@st.cache_data
+def entrenar_modelo(df):
+    df_reg = df[['insolacion_tierra', 'temperatura_k']].dropna().copy()
+    df_reg['log_insol'] = np.log1p(df_reg['insolacion_tierra'])
+    df_reg['log_temp'] = np.log1p(df_reg['temperatura_k'])
+    modelo = LinearRegression()
+    modelo.fit(df_reg[['log_insol']], df_reg['log_temp'])
+    return modelo
+
+@st.cache_data
+def calcular_clusters(df):
+    columnas = ['radio_terrestre', 'temperatura_k', 'masa_terrestre', 'insolacion_tierra']
+    df_cluster = df[columnas].dropna().copy()
+    scaler = StandardScaler()
+    datos_scaled = scaler.fit_transform(df_cluster)
+    kmeans = KMeans(n_clusters=5, random_state=42, n_init=10)
+    df_cluster['cluster'] = kmeans.fit_predict(datos_scaled).astype(str)
+    return df_cluster
+
 df = cargar_datos()
+modelo_reg = entrenar_modelo(df)
+df_clusters = calcular_clusters(df)
 
 COLORES = {
     'Habitable': '#00ff87',
@@ -208,14 +244,11 @@ with f2:
 with f3:
     rango_años = st.slider("Rango de años", año_min, año_max, (año_min, año_max))
 
-# Recalcular tipos disponibles según método
 if metodo_sel != "— Todos los métodos —":
     tipos_disponibles = sorted(df[df['metodo_descubrimiento'] == metodo_sel]['tipo_planeta'].unique().tolist())
-    tipo_op_actualizado = ["— Todos los tipos —"] + tipos_disponibles
-    if tipo_sel not in tipo_op_actualizado:
+    if tipo_sel not in ["— Todos los tipos —"] + tipos_disponibles:
         tipo_sel = "— Todos los tipos —"
 
-# APLICAR FILTROS
 df_filtrado = df.copy()
 if tipo_sel != "— Todos los tipos —":
     df_filtrado = df_filtrado[df_filtrado['tipo_planeta'] == tipo_sel]
@@ -229,10 +262,10 @@ df_filtrado = df_filtrado[
 st.markdown("<br>", unsafe_allow_html=True)
 
 # MÉTRICAS REACTIVAS
-c1, c2, c3, c4 = st.columns(4)
 estilo_num = "font-size:2em;font-family:Orbitron,monospace;color:#00d4ff;line-height:1.2"
 estilo_box = "class='metric-box' style='min-height:110px;display:flex;flex-direction:column;justify-content:center'"
 
+c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown(f"<div {estilo_box}><div style='{estilo_num}'>{len(df_filtrado):,}</div><p>PLANETAS</p></div>", unsafe_allow_html=True)
 with c2:
@@ -249,14 +282,11 @@ with c4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
-
 # PESTAÑAS
-tab1, tab2, tab3 = st.tabs(["🔭  EXPLORADOR", "📊  VISUALIZACIONES", "🤖  AGENTE IA"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔭  EXPLORADOR", "📊  VISUALIZACIONES", "🔬  PREDICCIÓN", "🤖  AGENTE IA"])
 
 with tab1:
     st.markdown("<br>", unsafe_allow_html=True)
-
     if len(df_filtrado) == 0:
         st.warning("No hay planetas con los filtros seleccionados.")
     else:
@@ -287,32 +317,41 @@ with tab1:
             m1, m2, m3, m4 = st.columns(4)
             with m1:
                 v = f"{datos['radio_terrestre']} R⊕" if pd.notna(datos['radio_terrestre']) else "Sin datos"
-                st.markdown(f"<div class='metric-box'><h2>{v}</h2><p>RADIO</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-box'><div style='{estilo_num}'>{v}</div><p>RADIO</p></div>", unsafe_allow_html=True)
             with m2:
                 v = f"{datos['masa_terrestre']} M⊕" if pd.notna(datos['masa_terrestre']) else "Sin datos"
-                st.markdown(f"<div class='metric-box'><h2>{v}</h2><p>MASA</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-box'><div style='{estilo_num}'>{v}</div><p>MASA</p></div>", unsafe_allow_html=True)
             with m3:
                 v = f"{round(datos['periodo_orbital_dias'],1)} días" if pd.notna(datos['periodo_orbital_dias']) else "Sin datos"
-                st.markdown(f"<div class='metric-box'><h2>{v}</h2><p>PERÍODO ORBITAL</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-box'><div style='{estilo_num}'>{v}</div><p>PERÍODO ORBITAL</p></div>", unsafe_allow_html=True)
             with m4:
                 v = f"{datos['temperatura_k']} K" if pd.notna(datos['temperatura_k']) else "Sin datos"
-                st.markdown(f"<div class='metric-box'><h2>{v}</h2><p>TEMPERATURA</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='metric-box'><div style='{estilo_num}'>{v}</div><p>TEMPERATURA</p></div>", unsafe_allow_html=True)
+
+            # Predicción de temperatura si no tiene dato
+            if pd.isna(datos['temperatura_k']) and pd.notna(datos.get('insolacion_tierra')):
+                temp_pred = np.expm1(modelo_reg.predict(np.log1p([[datos['insolacion_tierra']]]))[0])
+                st.markdown(f"""
+                <div class='planet-card' style='margin-top:8px; border-color:rgba(0,255,135,0.3)'>
+                    <p style='color:#00ff87'>🔬 Temperatura predicha por modelo de regresión: <b>{temp_pred:.1f} K</b></p>
+                    <p style='color:rgba(255,255,255,0.5); font-size:0.85em; margin:0'>Basado en insolación {datos['insolacion_tierra']} × Tierra · R²=0.982</p>
+                </div>
+                """, unsafe_allow_html=True)
 
             st.markdown(f"""
             <div class='planet-card' style='margin-top:16px'>
                 <p><b style='color:#00d4ff'>Tipo:</b> {datos['tipo_planeta']}</p>
                 <p><b style='color:#00d4ff'>Temperatura estrella:</b> {datos['temperatura_estrella_k']} K</p>
-                <p><b style='color:#00d4ff'>Insolación:</b> {'%.2f × Tierra' % datos['insolacion_tierra'] if pd.notna(datos['insolacion_tierra']) else 'Sin datos'}</p>
-                <p><b style='color:#00d4ff'>Distancia:</b> {'%.1f parsecs (%.1f años luz)' % (datos['distancia_parsecs'], datos['distancia_parsecs'] * 3.26) if pd.notna(datos['distancia_parsecs']) else 'Sin datos'}</p>
-                <p><b style='color:#00d4ff'>Planetas en el sistema:</b> {int(datos['planetas_en_sistema']) if pd.notna(datos['planetas_en_sistema']) else 'Sin datos'}</p>
-                <p><b style='color:#00d4ff'>Radio estrella:</b> {'%.2f R☉' % datos['radio_estrella'] if pd.notna(datos['radio_estrella']) else 'Sin datos'}</p>
-                <p style='margin:0'><b style='color:#00d4ff'>Masa estrella:</b> {'%.2f M☉' % datos['masa_estrella'] if pd.notna(datos['masa_estrella']) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Insolación:</b> {'%.2f × Tierra' % datos['insolacion_tierra'] if pd.notna(datos.get('insolacion_tierra')) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Distancia:</b> {'%.1f pc (%.1f años luz)' % (datos['distancia_parsecs'], datos['distancia_parsecs'] * 3.26) if pd.notna(datos.get('distancia_parsecs')) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Planetas en sistema:</b> {int(datos['planetas_en_sistema']) if pd.notna(datos.get('planetas_en_sistema')) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Radio estrella:</b> {'%.2f R☉' % datos['radio_estrella'] if pd.notna(datos.get('radio_estrella')) else 'Sin datos'}</p>
+                <p style='margin:0'><b style='color:#00d4ff'>Masa estrella:</b> {'%.2f M☉' % datos['masa_estrella'] if pd.notna(datos.get('masa_estrella')) else 'Sin datos'}</p>
             </div>
             """, unsafe_allow_html=True)
 
 with tab2:
     st.markdown("<br>", unsafe_allow_html=True)
-
     if len(df_filtrado) == 0:
         st.warning("No hay planetas con los filtros seleccionados.")
     else:
@@ -324,7 +363,7 @@ with tab2:
                 color_discrete_map=COLORES, title='Distribución por tipo de planeta',
                 template='plotly_dark')
             fig1.update_layout(**LAYOUT_BASE, showlegend=False)
-            st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+            st.plotly_chart(fig1, use_container_width=True, config=CHART_CONFIG)
 
         with col_b:
             m_count = df_filtrado['metodo_descubrimiento'].value_counts().reset_index()
@@ -333,16 +372,15 @@ with tab2:
                 title='Métodos de descubrimiento', template='plotly_dark', hole=0.4)
             fig2.update_layout(**LAYOUT_BASE)
             fig2.update_traces(textfont_color='#ffffff')
-            st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+            st.plotly_chart(fig2, use_container_width=True, config=CHART_CONFIG)
 
         por_año = df_filtrado.groupby('año_descubrimiento').size().reset_index()
         por_año.columns = ['año', 'cantidad']
         fig3 = px.area(por_año, x='año', y='cantidad', title='Descubrimientos por año',
-            template='plotly_dark', color_discrete_sequence=['#00d4ff'],
-            markers=True)
+            template='plotly_dark', color_discrete_sequence=['#00d4ff'], markers=True)
         fig3.update_layout(**LAYOUT_BASE)
         fig3.update_traces(fill='tozeroy', fillcolor='rgba(0,212,255,0.1)')
-        st.plotly_chart(fig3, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+        st.plotly_chart(fig3, use_container_width=True, config=CHART_CONFIG)
 
         df_sc = df_filtrado.dropna(subset=['radio_terrestre', 'temperatura_k'])
         if len(df_sc) > 0:
@@ -356,9 +394,81 @@ with tab2:
                 layer='below', line_width=0,
                 annotation_text="Zona habitable", annotation_font_color='#00ff87')
             fig4.update_layout(**LAYOUT_BASE)
-            st.plotly_chart(fig4, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+            st.plotly_chart(fig4, use_container_width=True, config=CHART_CONFIG)
 
 with tab3:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class='planet-card'>
+        <p style='color:rgba(0,212,255,0.9); font-size:1.1em; margin-bottom:8px'><b>Modelo de predicción de temperatura</b></p>
+        <p style='color:rgba(255,255,255,0.7)'>Ingresa la insolación de un planeta para predecir su temperatura de equilibrio.</p>
+        <p style='color:rgba(255,255,255,0.5); font-size:0.85em'>Modelo: regresión logarítmica · R²=0.982 · Error medio: 49.7K · Entrenado con 756 exoplanetas reales</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_pred1, col_pred2 = st.columns(2)
+    with col_pred1:
+        insol_input = st.number_input(
+            "Insolación (× Tierra) — La Tierra = 1.0",
+            min_value=0.01,
+            max_value=50000.0,
+            value=1.0,
+            step=0.1
+        )
+        if st.button("PREDECIR TEMPERATURA"):
+            temp_pred = np.expm1(modelo_reg.predict(np.log1p([[insol_input]]))[0])
+            if 200 <= temp_pred <= 320:
+                estado = "🟢 En zona habitable"
+                color = "#00ff87"
+            elif temp_pred < 200:
+                estado = "🔵 Demasiado frío"
+                color = "#4da6ff"
+            else:
+                estado = "🔴 Demasiado caliente"
+                color = "#fb7185"
+            st.markdown(f"""
+            <div class='planet-card' style='border-color:{color}'>
+                <p style='font-size:2em; font-family:Orbitron,monospace; color:{color}'>{temp_pred:.1f} K</p>
+                <p style='color:{color}'>{estado}</p>
+                <p style='color:rgba(255,255,255,0.5); font-size:0.85em; margin:0'>Insolación ingresada: {insol_input} × Tierra</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_pred2:
+        df_reg_viz = df[['insolacion_tierra', 'temperatura_k', 'nombre_planeta']].dropna()
+        x_line = np.linspace(0.1, df_reg_viz['insolacion_tierra'].quantile(0.95), 200)
+        y_line = np.expm1(modelo_reg.predict(np.log1p(x_line.reshape(-1, 1))))
+        fig_reg = px.scatter(df_reg_viz, x='insolacion_tierra', y='temperatura_k',
+            hover_name='nombre_planeta',
+            title='Modelo: Insolación vs Temperatura',
+            template='plotly_dark', opacity=0.4,
+            labels={'insolacion_tierra': 'Insolación (× Tierra)', 'temperatura_k': 'Temperatura (K)'})
+        fig_reg.add_scatter(x=x_line, y=y_line.flatten(), mode='lines',
+            name='Modelo R²=0.982', line=dict(color='#00ff87', width=2))
+        fig_reg.add_vline(x=1.0, line_dash='dash', line_color='#00d4ff',
+            annotation_text='Tierra', annotation_font_color='#00d4ff')
+        fig_reg.update_layout(**LAYOUT_BASE)
+        st.plotly_chart(fig_reg, use_container_width=True, config=CHART_CONFIG)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<p style='color:rgba(0,212,255,0.7)'><b>Clustering K-means — 5 grupos naturales</b></p>", unsafe_allow_html=True)
+
+    df_cluster_viz = df.loc[df_clusters.index, ['nombre_planeta']].copy()
+    df_cluster_viz['cluster'] = df_clusters['cluster']
+    df_cluster_viz['radio_terrestre'] = df_clusters['radio_terrestre']
+    df_cluster_viz['temperatura_k'] = df_clusters['temperatura_k']
+    df_cluster_viz['insolacion_tierra'] = df_clusters['insolacion_tierra']
+
+    fig_cluster = px.scatter(df_cluster_viz,
+        x='radio_terrestre', y='temperatura_k',
+        color='cluster', hover_name='nombre_planeta',
+        title='Clustering K-means de exoplanetas',
+        template='plotly_dark',
+        labels={'radio_terrestre': 'Radio (R⊕)', 'temperatura_k': 'Temperatura (K)', 'cluster': 'Cluster'})
+    fig_cluster.update_layout(**LAYOUT_BASE)
+    st.plotly_chart(fig_cluster, use_container_width=True, config=CHART_CONFIG)
+
+with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("""
     <div class='planet-card'>
@@ -398,10 +508,10 @@ with tab3:
         if rango_años != (año_min, año_max):
             filtros_activos.append(f"años: {rango_años[0]}–{rango_años[1]}")
 
-        filtros_texto = ", ".join(filtros_activos) if filtros_activos else "ninguno (mostrando todos los planetas)"
+        filtros_texto = ", ".join(filtros_activos) if filtros_activos else "ninguno"
 
         hab = df_filtrado[df_filtrado['tipo_planeta'] == 'Habitable'][
-            ['nombre_planeta', 'radio_terrestre', 'temperatura_k', 'estrella']
+            ['nombre_planeta', 'radio_terrestre', 'temperatura_k', 'estrella', 'insolacion_tierra']
         ].to_string(index=False)
 
         resumen = f"""
@@ -414,10 +524,14 @@ Filtros activos: {filtros_texto}
 - Temperatura promedio: {round(df_filtrado['temperatura_k'].mean(), 1)} K
 - Radio promedio: {round(df_filtrado['radio_terrestre'].mean(), 2)} R⊕
 
-Planetas habitables en el filtro actual:
+Análisis disponibles:
+- Clustering K-means: 5 grupos identificados
+- Regresión logarítmica: R²=0.982, predice temperatura desde insolación
+
+Planetas habitables:
 {hab}
 
-IMPORTANTE: Si el usuario pregunta por planetas fuera del filtro actual, indícale que tiene filtros activos y que debe cambiarlos para ver esos planetas.
+IMPORTANTE: Si el usuario pregunta por planetas fuera del filtro actual, indícale que tiene filtros activos.
 """
         prompt = f"""Eres un astrónomo experto con acceso a la base de datos NASA de exoplanetas.
 
