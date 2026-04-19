@@ -301,7 +301,12 @@ with tab1:
             st.markdown(f"""
             <div class='planet-card' style='margin-top:16px'>
                 <p><b style='color:#00d4ff'>Tipo:</b> {datos['tipo_planeta']}</p>
-                <p style='margin:0'><b style='color:#00d4ff'>Temperatura estrella:</b> {datos['temperatura_estrella_k']} K</p>
+                <p><b style='color:#00d4ff'>Temperatura estrella:</b> {datos['temperatura_estrella_k']} K</p>
+                <p><b style='color:#00d4ff'>Insolación:</b> {'%.2f × Tierra' % datos['insolacion_tierra'] if pd.notna(datos['insolacion_tierra']) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Distancia:</b> {'%.1f parsecs (%.1f años luz)' % (datos['distancia_parsecs'], datos['distancia_parsecs'] * 3.26) if pd.notna(datos['distancia_parsecs']) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Planetas en el sistema:</b> {int(datos['planetas_en_sistema']) if pd.notna(datos['planetas_en_sistema']) else 'Sin datos'}</p>
+                <p><b style='color:#00d4ff'>Radio estrella:</b> {'%.2f R☉' % datos['radio_estrella'] if pd.notna(datos['radio_estrella']) else 'Sin datos'}</p>
+                <p style='margin:0'><b style='color:#00d4ff'>Masa estrella:</b> {'%.2f M☉' % datos['masa_estrella'] if pd.notna(datos['masa_estrella']) else 'Sin datos'}</p>
             </div>
             """, unsafe_allow_html=True)
 

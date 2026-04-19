@@ -9,7 +9,7 @@ load_dotenv()
 url = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
 
 params = {
-    "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year FROM ps WHERE default_flag=1",
+    "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year,pl_insol,sy_dist,sy_pnum,st_rad,st_mass FROM ps WHERE default_flag=1",
     "format": "json"
 }
 
