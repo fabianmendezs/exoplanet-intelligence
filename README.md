@@ -96,6 +96,33 @@ El proyecto corre como servicio systemd en el servidor personal.
 **URL:** https://exoplanet.frmendez.com  
 **Ruta en servidor:** `/var/www/exoplanet-intelligence/`
 
+### Primera vez (deploy inicial)
+
+```bash
+# En el servidor (SSH: ssh root@143.244.153.241)
+cd /var/www
+git clone https://github.com/fabianmendezs/exoplanet-intelligence.git
+cd exoplanet-intelligence
+
+# Crear venv desde cero — NUNCA copiar un venv de otra ruta
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+deactivate
+
+# Crear .env con las credenciales (el .gitignore lo excluye del repo)
+nano /var/www/exoplanet-intelligence/.env
+# Agregar:
+#   NASA_API_KEY=TU_NASA_KEY
+#   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+
+systemctl start exoplanet
+```
+
+> **Importante:** El venv debe crearse con `python3 -m venv venv` directamente en la ruta final.
+> Si se copia de otro directorio, el shebang de los scripts queda hardcodeado a la ruta original
+> y el servicio falla con `status=203/EXEC`.
+
 ### Actualizar el servidor tras un push
 
 ```bash
@@ -108,8 +135,9 @@ systemctl restart exoplanet
 ### Ver logs del servicio
 
 ```bash
-journalctl -u exoplanet -f        # Logs en tiempo real
+journalctl -u exoplanet -f             # Logs en tiempo real
 journalctl -u exoplanet --since today  # Logs del día
+journalctl -u exoplanet -n 30 --no-pager  # Últimas 30 líneas
 ```
 
 ### Verificar seguridad del servidor
@@ -117,6 +145,9 @@ journalctl -u exoplanet --since today  # Logs del día
 ```bash
 # .env no debe ser accesible públicamente (debe devolver 404)
 curl https://exoplanet.frmendez.com/.env
+
+# App respondiendo correctamente
+curl -s -o /dev/null -w "%{http_code}" https://exoplanet.frmendez.com
 ```
 
 ## Seguridad
@@ -130,9 +161,24 @@ Este proyecto sigue las prácticas definidas en la [guía de seguridad del stack
 - ✅ Requests HTTP con `timeout=60` para evitar bloqueos del servidor
 - ✅ Nginx bloquea acceso a `.env` vía HTTP
 
-> **Nota:** Si el agente IA muestra `Error: 401 Invalid API Key`, la `GROQ_API_KEY` en el servidor
-> está vencida o inválida. Generar una nueva en [console.groq.com](https://console.groq.com)
-> y actualizar `/var/www/exoplanet-intelligence/.env` en el servidor.
+### Troubleshooting — Agente IA muestra error 401
+
+**Causa más común:** el archivo `.env` no existe en el servidor (el `.gitignore` lo excluye del repo,
+por lo que hay que crearlo manualmente en cada deploy).
+
+```bash
+# Verificar que .env existe en el servidor
+ls -la /var/www/exoplanet-intelligence/.env
+
+# Si no existe, crearlo:
+nano /var/www/exoplanet-intelligence/.env
+# Agregar GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
+
+systemctl restart exoplanet
+```
+
+Si el `.env` existe pero el error persiste, la key puede estar vencida o revocada.
+Generar una nueva en [console.groq.com](https://console.groq.com) → API Keys.
 
 ## Autor
 
