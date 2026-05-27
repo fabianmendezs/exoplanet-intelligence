@@ -147,7 +147,7 @@ def cargar_datos():
             "query": "SELECT pl_name,hostname,pl_masse,pl_rade,pl_orbper,pl_eqt,st_teff,discoverymethod,disc_year,pl_insol,sy_dist,sy_pnum,st_rad,st_mass FROM ps WHERE default_flag=1",
             "format": "json"
         }
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=60)
         df = pd.DataFrame(response.json())
         df = df.rename(columns={
             'pl_name': 'nombre_planeta',

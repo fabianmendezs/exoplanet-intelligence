@@ -1,6 +1,34 @@
-﻿.ipynb_checkpoints/
+﻿# Entorno virtual
 venv/
+
+# Variables de entorno — NUNCA commitear
+.env
+.env.local
+.env.prod
+.env.staging
+.env.development
+# .env.example SÍ se commitea (es la plantilla sin valores reales)
+
+# Datos generados (archivos grandes)
 data/
+*.duckdb
+*.duckdb.wal
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Python
 __pycache__/
 *.pyc
-.env
+*.pyo
+.pytest_cache/
+
+# Logs
+logs/
+
+# Archivos generados / temporales
+exoplanet_tracker.html
+
+# OS
+.DS_Store
+Thumbs.db
